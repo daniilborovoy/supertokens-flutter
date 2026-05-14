@@ -119,6 +119,16 @@ class SuperTokensInterceptorWrapper extends Interceptor {
             await Client.onUnauthorisedResponse(_preRequestLocalSessionState);
         if (shouldRetry.status == UnauthorisedStatus.RETRY) {
           requestOptions.headers[HttpHeaders.cookieHeader] = userSetCookie;
+          // FormData is a single-use stream: it gets finalized on the first
+          // send, so reusing the same RequestOptions on retry throws
+          // "Bad state: The FormData has already been finalized". Clone it
+          // (which also clones nested MultipartFile streams) so the retry has
+          // a fresh, replayable body.
+          if (requestOptions.data is FormData) {
+            requestOptions = requestOptions.copyWith(
+              data: (requestOptions.data as FormData).clone(),
+            );
+          }
           Response<dynamic> res = await client.fetch(requestOptions);
           List<dynamic>? setCookieFromResponse =
               res.headers.map[HttpHeaders.setCookieHeader];
